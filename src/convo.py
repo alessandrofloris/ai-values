@@ -1,7 +1,10 @@
 import os
 import re
 
+from dotenv import load_dotenv
 from openai import OpenAI
+
+load_dotenv()
 
 # Some models (e.g. Gemma) prefix the answer with a reasoning block like
 # <thought>...</thought>5. Strip such blocks so only the actual reply is scored.
@@ -41,24 +44,52 @@ PROVIDER_URLS = {
     'meta': 'https://api.meta.ai/v1',
 }
 
+CUSTOM_PROVIDER_KEYS = {'custom_openai', 'custom', 'custom-openai', 'local'}
+
 
 class Convo:
     """A stateful conversation with a single LLM, using the OpenAI-compatible chat interface."""
 
-    def __init__(self, provider: str, model: str, system: str = None):
+    def __init__(self, provider: str, model: str = None, system: str = None):
         # Provider strings keep their display capitalisation in config/experiments.json
-        # (e.g. "Gemini", "OpenAI"); casefold for URL / env-var lookup.
+        # (e.g. "Gemini", "OpenAI", "custom_openai"); casefold for lookup.
         key = provider.casefold()
-        if key not in PROVIDER_URLS:
-            raise ValueError(f'Unknown provider {provider!r}. Known: {list(PROVIDER_URLS)}')
+
+        if key in CUSTOM_PROVIDER_KEYS:
+            base_url = os.environ.get('CUSTOM_OPENAI_BASE_URL')
+            if not base_url:
+                raise ValueError(
+                    "Provider 'custom_openai' requires CUSTOM_OPENAI_BASE_URL to be set in .env"
+                )
+            api_key = os.environ.get('CUSTOM_OPENAI_API_KEY') or 'dummy-key'
+
+            if not model or model.casefold() == 'default':
+                model = os.environ.get('CUSTOM_OPENAI_MODEL', 'default')
+
+            timeout = float(os.environ.get('CUSTOM_OPENAI_REQUEST_TIMEOUT', 120))
+            max_retries = int(os.environ.get('CUSTOM_OPENAI_MAX_RETRIES', 5))
+        else:
+            if key not in PROVIDER_URLS:
+                raise ValueError(f'Unknown provider {provider!r}. Known: {list(PROVIDER_URLS) + ["custom_openai"]}')
+            base_url = PROVIDER_URLS[key]
+            api_key = os.environ[f'{key.upper()}_API_KEY']
+            timeout = None
+            max_retries = None
+
+        client_kwargs = {
+            'base_url': base_url,
+            'api_key': api_key,
+        }
+        if timeout is not None:
+            client_kwargs['timeout'] = timeout
+        if max_retries is not None:
+            client_kwargs['max_retries'] = max_retries
+
         self.provider = provider
         self.model = model
         self.messages = [{'role': 'system', 'content': system or 'You are a helpful assistant.'}]
         self.log_data = []
-        self._client = OpenAI(
-            base_url=PROVIDER_URLS[key],
-            api_key=os.environ[f'{key.upper()}_API_KEY'],
-        )
+        self._client = OpenAI(**client_kwargs)
 
     def ask(self, prompt: str, reasoning_effort: str = None) -> str:
         """Send a message and return the reply. Appends both to conversation history."""
@@ -67,9 +98,19 @@ class Convo:
         if reasoning_effort is not None:
             params['reasoning_effort'] = reasoning_effort
         response = self._client.chat.completions.create(**params)
-        content = _text_of(response.choices[0].message.content)
-        if content:
-            content = _strip_thoughts(content)
+        content = ''
+        if response.choices:
+            msg = response.choices[0].message
+            raw_content = msg.content
+            # Fallback for reasoning models (e.g. DeepSeek-R1 / Ollama / vLLM) where content is null
+            if not raw_content:
+                raw_content = getattr(msg, 'reasoning_content', None)
+                if not raw_content and hasattr(msg, 'model_extra') and isinstance(msg.model_extra, dict):
+                    raw_content = msg.model_extra.get('reasoning_content')
+            content = _text_of(raw_content) or ''
+            if content:
+                content = _strip_thoughts(content)
+
         self.log_data.append(response)
         self.messages.append({'role': 'assistant', 'content': content})
         return content

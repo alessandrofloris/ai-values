@@ -5,10 +5,10 @@ Run WVS survey questions against LLMs and append results to out/responses.csv.
 Usage:
   python src/run_experiments.py --expts 1215 1216 1217
   python src/run_experiments.py --expts 1500
-  python src/run_experiments.py --provider anthropic
 """
 import argparse
 import json
+import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -62,7 +62,7 @@ def persona_of(cfg: dict) -> str:
 # In non-zero-shot mode, re-ask a question up to this many times until the
 # answer is short enough to parse (< 5 chars). The growing conversation
 # history nudges the model toward brevity.
-MAX_RETRIES = 5
+MAX_RETRIES = int(os.environ.get('CUSTOM_OPENAI_MAX_RETRIES', 5))
 SHORT_ANSWER_THRESHOLD = 5
 
 
@@ -107,7 +107,10 @@ def personas_for(respondents: pd.DataFrame, batch: str) -> list[str]:
 def run_experiment(expt_id: str, cfg: dict, questions: dict, respondents: list,
                    position: int = 1) -> list[dict]:
     provider = cfg['provider']
-    model = cfg['model']
+    model = cfg.get('model')
+    if provider.casefold() in ('custom_openai', 'custom', 'custom-openai', 'local') and (not model or model.casefold() == 'default'):
+        model = os.environ.get('CUSTOM_OPENAI_MODEL', 'default')
+
     zero_shot = cfg.get('zero_shot', False)
     reasoning_effort = cfg.get('reasoning_effort')
     language = cfg.get('language', 'EN')
@@ -128,12 +131,12 @@ def run_experiment(expt_id: str, cfg: dict, questions: dict, respondents: list,
             prompt = f'{q_prefix}{question}'
 
             if zero_shot:
-                answer = Convo(provider, model, system_prompt).ask(prompt, reasoning_effort).casefold()
+                answer = (Convo(provider, model, system_prompt).ask(prompt, reasoning_effort) or '').casefold()
             else:
                 for _ in range(MAX_RETRIES):
                     time.sleep(0.5)  # brief pause before retrying
-                    answer = convo.ask(prompt, reasoning_effort).casefold()
-                    if len(answer) < SHORT_ANSWER_THRESHOLD:
+                    answer = (convo.ask(prompt, reasoning_effort) or '').casefold()
+                    if 0 < len(answer) < SHORT_ANSWER_THRESHOLD:
                         break
 
             try:
@@ -184,8 +187,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--expts', nargs='+', metavar='ID', help='Experiment IDs to run')
-    parser.add_argument('--jobs', '-j', type=int, default=6,
-                        help='Max experiments to run concurrently (default: 6)')
+    default_jobs = int(os.environ.get('CUSTOM_OPENAI_CONCURRENCY', 6))
+    parser.add_argument('--jobs', '-j', type=int, default=default_jobs,
+                        help=f'Max experiments to run concurrently (default: {default_jobs})')
     parser.add_argument('--force', action='store_true',
                         help='Re-run experiments even if they already appear in responses.csv')
     args = parser.parse_args()
@@ -229,7 +233,12 @@ def main() -> None:
             for i, (expt_id, cfg) in enumerate(to_run.items())
         }
         for expt_id, cfg in to_run.items():
-            tqdm.write(f'{expt_id}: {cfg["label"]}  ({cfg["provider"]}/{cfg["model"]})')
+            provider = cfg['provider']
+            model = cfg.get('model')
+            if provider.casefold() in ('custom_openai', 'custom', 'custom-openai', 'local') and (not model or model.casefold() == 'default'):
+                model = os.environ.get('CUSTOM_OPENAI_MODEL', 'default')
+            label = cfg.get('label', expt_id)
+            tqdm.write(f'{expt_id}: {label}  ({provider}/{model})')
 
         for future in tqdm(as_completed(futures), total=len(futures), desc='Experiments', position=0):
             expt_id = futures[future]
