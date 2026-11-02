@@ -294,8 +294,8 @@ document.getElementById('prevBtn').onclick=()=>{
 // by the colour-matched toggle buttons and direct point labels (secondary encoding).
 const COUNTRY_REGIONS = ['African-Islamic','West & South Asia','Latin America','Orthodox Europe','English-Speaking','Catholic Europe','Confucian','Protestant Europe'];
 const COUNTRY_COLORS  = ['#c2185b','#f783ac','#9c36b5','#e64980','#2b8a3e','#82c91e','#087f5b','#40c057'];
-const AI_VENDORS = ['Anthropic','OpenAI','Google','xAI','Mistral','Qwen','Microsoft','Other'];
-const AI_COLORS  = ['#c2410c','#fb923c','#ea580c','#f59e0b','#1d4ed8','#38bdf8','#2563eb','#0891b2'];
+const AI_VENDORS = ['Anthropic','OpenAI','Google','xAI','Mistral','Qwen','Microsoft','Custom','Agents','Other'];
+const AI_COLORS  = ['#c2410c','#fb923c','#ea580c','#f59e0b','#1d4ed8','#38bdf8','#2563eb','#7950f2','#e03131','#0891b2'];
 const AI_SET = new Set(AI_VENDORS);
 
 function regionColor(region) {
@@ -471,14 +471,20 @@ function initChart(points) {
   // Build datasets in fixed group order (countries first, then AI vendors).
   // AI vendor groups start hidden; countries start visible.
   const orderedRegions = [...COUNTRY_REGIONS, ...AI_VENDORS].filter(r => regionMap[r]);
-  const datasets = orderedRegions.map(region => ({
+  const datasets = orderedRegions.map(region => {
+    const isAgents = region === 'Agents';
+    return {
     label: region,
     data: regionMap[region],
     pointBackgroundColor: regionColor(region),
     pointBorderWidth: 0,
-    pointRadius: 5,
+    pointBorderColor: regionColor(region),
+    pointRadius: isAgents ? 7 : 5,
+    pointHoverRadius: isAgents ? 9 : 7,
+    pointStyle: isAgents ? 'triangle' : 'circle',
     hidden: AI_SET.has(region)
-  }));
+    };
+  });
 
   // Fixed reference marker: the human population mean sits at the affine
   // intercept (0.038, -0.1), not the origin — see src/human_mean.py. Drawn as a

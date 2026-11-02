@@ -105,7 +105,11 @@ def compute_llm_coordinates(df: pd.DataFrame, experiments: dict, weights, means,
     # where needed); `vendor` is the model's true origin, used as the plot region
     # so points colour by vendor. Runs sharing a label are averaged into one point.
     label_map = {k: v['label'] for k, v in experiments.items()}
-    vendor_map = {k: v['vendor'] for k, v in experiments.items()}
+    vendor_map = {
+        k: ('Custom' if v.get('provider', '').casefold() in ('custom_openai', 'custom', 'custom-openai', 'local') or v.get('vendor', '').casefold() == 'custom'
+            else v.get('vendor', 'Other'))
+        for k, v in experiments.items()
+    }
     df = df.copy()
     ids = df['experiment_id'].astype(str)
     df['country'] = ids.map(label_map)

@@ -1,0 +1,6 @@
+label,agent_id,timepoint,F063,Y003,F120,G006,E018,Y002,A008,F118,E025,A165
+Agent 1 (T0),Agent_01,T0,7,"independence, determination",10,1,1,"1, 3",2,8,a,b
+Agent 1 (Tend),Agent_01,Tend,4,"faith, obedience",4,3,2,"2, 4",3,5,b,a
+Agent 2 (T0),Agent_02,T0,8,"determination",9,2,1,"1, 3",1,9,a,b
+Agent 2 (Tend),Agent_02,Tend,2,"independence",2,4,3,"2, 4",4,2,c,a
+
