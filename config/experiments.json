@@ -2195,7 +2195,7 @@
     "lineage": "Muse Spark",
     "release": "2026-08-05",
     "batch": "v2"
-  }, 
+  },
   "2503": {
     "provider": "Meta",
     "model": "muse-spark-1.1",
@@ -2204,7 +2204,7 @@
     "lineage": "Muse Spark",
     "release": "2026-07-09",
     "batch": "v2"
-  },  
+  },
   "2504": {
     "provider": "Fireworks",
     "model": "accounts/fireworks/models/muse-spark-open",
@@ -2213,7 +2213,7 @@
     "lineage": "Muse Open",
     "release": "2026-07-09",
     "batch": "v2"
-  },  
+  },
   "20000": {
     "provider": "OpenAI",
     "model": "gpt-5.6-terra",
@@ -2532,5 +2532,13 @@
     "batch": "v2",
     "language": "KA",
     "persona": "ka_ka_role"
+  },
+  "9000": {
+    "provider": "custom_openai",
+    "model": "default",
+    "label": "Verdi",
+    "vendor": "SimulaMet",
+    "batch": "v2",
+    "language": "EN"
   }
 }
